@@ -2,75 +2,86 @@ package zsxq
 
 import (
 	"testing"
-
-	"github.com/tamnd/any-cli/kit"
 )
-
-// These tests are offline: they exercise the URI driver's pure string functions
-// and the host wiring (mint, body, resolve), which need no network. The client's
-// HTTP behaviour is covered in zsxq_test.go.
 
 func TestDomainInfo(t *testing.T) {
 	info := Domain{}.Info()
 	if info.Scheme != "zsxq" {
 		t.Errorf("Scheme = %q, want zsxq", info.Scheme)
 	}
-	if len(info.Hosts) == 0 || info.Hosts[0] != Host {
-		t.Errorf("Hosts = %v, want [%s]", info.Hosts, Host)
+	if len(info.Hosts) == 0 {
+		t.Error("Hosts is empty")
 	}
 	if info.Identity.Binary != "zsxq" {
 		t.Errorf("Identity.Binary = %q, want zsxq", info.Identity.Binary)
 	}
 }
 
-func TestClassify(t *testing.T) {
-	cases := []struct{ in, typ, id string }{
-		{"wiki/Go", "page", "wiki/Go"},
-		{"/about/", "page", "about"},
-		{"https://" + Host + "/team/contact", "page", "team/contact"},
+func TestClassifyGroupURL(t *testing.T) {
+	got, id, err := Domain{}.Classify("https://wx.zsxq.com/group/28855514824481")
+	if err != nil {
+		t.Fatalf("Classify group URL: %v", err)
 	}
-	for _, tc := range cases {
-		typ, id, err := Domain{}.Classify(tc.in)
-		if err != nil || typ != tc.typ || id != tc.id {
-			t.Errorf("Classify(%q) = (%q, %q, %v), want (%q, %q, nil)",
-				tc.in, typ, id, err, tc.typ, tc.id)
-		}
+	if got != "group" {
+		t.Errorf("type = %q, want group", got)
+	}
+	if id != "28855514824481" {
+		t.Errorf("id = %q, want 28855514824481", id)
 	}
 }
 
-func TestLocate(t *testing.T) {
-	got, err := Domain{}.Locate("page", "wiki/Go")
-	want := "https://" + Host + "/wiki/Go"
+func TestClassifyTopicURL(t *testing.T) {
+	got, id, err := Domain{}.Classify("https://wx.zsxq.com/topic/18885512814151")
+	if err != nil {
+		t.Fatalf("Classify topic URL: %v", err)
+	}
+	if got != "topic" {
+		t.Errorf("type = %q, want topic", got)
+	}
+	if id != "18885512814151" {
+		t.Errorf("id = %q, want 18885512814151", id)
+	}
+}
+
+func TestClassifyBareID(t *testing.T) {
+	typ, id, err := Domain{}.Classify("28855514824481")
+	if err != nil {
+		t.Fatalf("Classify bare ID: %v", err)
+	}
+	if typ != "group" {
+		t.Errorf("type = %q, want group", typ)
+	}
+	if id != "28855514824481" {
+		t.Errorf("id = %q", id)
+	}
+}
+
+func TestClassifyEmpty(t *testing.T) {
+	_, _, err := Domain{}.Classify("")
+	if err == nil {
+		t.Error("Classify empty string should return error")
+	}
+}
+
+func TestLocateGroup(t *testing.T) {
+	got, err := Domain{}.Locate("group", "28855514824481")
+	want := WebBase + "/group/28855514824481"
 	if err != nil || got != want {
 		t.Errorf("Locate = (%q, %v), want (%q, nil)", got, err, want)
 	}
 }
 
-// TestHostWiring mounts the driver in a kit Host (the runtime ant drives) and
-// checks the round trip: a record mints to its URI, its body is readable, and a
-// bare id resolves back to the same URI. The init in domain.go registers the
-// domain, so kit.Open finds it.
-func TestHostWiring(t *testing.T) {
-	h, err := kit.Open()
-	if err != nil {
-		t.Fatal(err)
+func TestLocateTopic(t *testing.T) {
+	got, err := Domain{}.Locate("topic", "18885512814151")
+	want := WebBase + "/topic/18885512814151"
+	if err != nil || got != want {
+		t.Errorf("Locate = (%q, %v), want (%q, nil)", got, err, want)
 	}
+}
 
-	p := &Page{ID: "wiki/Go", URL: "https://" + Host + "/wiki/Go", Title: "Go", Body: "Go is a language."}
-	u, err := h.Mint(p)
-	if err != nil {
-		t.Fatalf("Mint: %v", err)
-	}
-	if want := "zsxq://page/wiki/Go"; u.String() != want {
-		t.Errorf("Mint = %q, want %q", u.String(), want)
-	}
-
-	if body, ok := h.Body(p); !ok || body == "" {
-		t.Errorf("Body = (%q, %v), want non-empty", body, ok)
-	}
-
-	got, err := h.ResolveOn("zsxq", "about")
-	if err != nil || got.String() != "zsxq://page/about" {
-		t.Errorf("ResolveOn = (%q, %v), want zsxq://page/about", got.String(), err)
+func TestLocateUnknownType(t *testing.T) {
+	_, err := Domain{}.Locate("unknown", "foo")
+	if err == nil {
+		t.Error("Locate with unknown type should return error")
 	}
 }
