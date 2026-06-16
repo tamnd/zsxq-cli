@@ -1,0 +1,10 @@
+title       = "zsxq"
+baseURL     = "https://zsxq-cli.tamnd.com/"
+description = "Read Zsxq knowledge group data"
+contentDir  = "content"
+outputDir   = "public"
+theme       = "tago-doks"
+syntaxHighlight = "true"
+
+[params]
+github = "https://github.com/tamnd/zsxq-cli"
